@@ -1,0 +1,302 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    highlight: tango
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+----------------------------------------------------------------------------------------------------------
+
+Create a new R Project
+Create a new R Notebook
+Download Plates geoJSON from here: https://github.com/fraxen/tectonicplates/blob/master/GeoJSON/PB2002_plates.json
+Download Earthquake data from email
+
+Let's import Earthquakes Data since I know how to do that quickly...
+```{r}
+earthquakes <- read.csv('earthquakes.csv')
+head(earthquakes, n = 15L)
+```
+
+Spent some time reviewing how to quickly import JSON into R
+Found this link helpful: https://stackoverflow.com/questions/20925492/how-to-import-json-into-r-and-convert-it-to-table
+
+Decided there must be some native understanding of geoJSON in R, so did some googling on "geojson r", the following ended up seeming helpful, so i decided to try it out: https://www.r-bloggers.com/plotting-geojson-data-on-a-map-with-r/
+
+```{r, error=TRUE}
+library(rgdal)
+if (!require(geojsonio)) {
+  install.packages("geojsonio")
+  library(geojsonio)
+}
+library(sp)
+library(maps)
+library(ggmap)
+```
+
+This first block of code is just loading some libraries... I didn't understand what the if(!require...) was doing above, so i googled "if !require r" the first result provided a nice overview: https://yihui.name/en/2014/07/library-vs-require/
+
+I tried running the above code and got some failures of missing libraries, I recognized that it was stopping at the first failed attempt, so I decided to enhance their code with my new "if-require" knowledge
+
+```{r, error=TRUE}
+if (!require(rgdal)) {
+  install.packages("rgdal")
+  library(rgdal)
+}
+if (!require(geojsonio)) {
+  install.packages("geojsonio")
+  library(geojsonio)
+}
+if (!require(sp)) {
+  install.packages("sp")
+  library(sp)
+}
+if (!require(maps)) {
+  install.packages("maps")
+  library(maps)
+}
+if (!require(ggmap)) {
+  install.packages("ggmap")
+  library(ggmap)
+}
+```
+
+This resulted in a whole lot of scary looking errors, so I decided to manually install each library using the packages explorer "just to be sure"
+
+As I went through, it turned out that the code above basically "failed out" after it couldn't handle the geojsonio... DOH!... good thing I checked manually and installed them all manually using the package manager
+
+```{r}
+library(rgdal)
+if (!require(geojsonio)) {
+  install.packages("geojsonio")
+  library(geojsonio)
+}
+library(sp)
+library(maps)
+library(ggmap)
+```
+
+Going back to the "non-enhanced-code" everything now runs with greenlights! So we got our libraries, now we can proceed forward... looking at the "getting the data" section in our r bloggers post, the next block is specific to their data, so we'll need to do some "fixups" on it to get it to use our data... but I'll start by copy pasting in their code line by line
+
+We don't actually need to download the data as we already have it downloaded, so I commented out this first line as we don't need it
+```{r}
+#data_url <- "https://data.openupstate.org/maps/swamp-rabbit-trail/parking/geojson.php"
+```
+
+This next line looks like it's just defining a variable holding our file name for future use... seems logical, might save some typing, so let's use it, but change it to have our filename instead...
+```{r}
+data_file <- "PB2002_plates.json"
+```
+
+The blogger then mentions some more stuff about file downloading... not really applicable to us since we already have ours downloaded, so let's just comment out the lines dealing with the download and the error check for the download
+```{r}
+# for some reason, I can't read from the url directly, though the tutorial
+# says I can
+#download.file(data_url, data_file)
+#Error in download.file(data_url, data_file): cannot open URL #'https://data.openupstate.org/maps/swamp-rabbit-trail/parking/geojson.php'
+```
+
+Now it looks like we're getting into reading our file data... so let's do that, we don't have to change anything here since we set our filename variable above... There's a good explination of what "sp" means in the blog too, I did some googling around to understand a little more about "spatial objects" in r, nothing serious, just to see what background info i could find quickly, I suspect i'll need to look more into this later in the code, but just a quick eye for now was enough.
+```{r}
+data_json <- geojson_read(data_file, what = "sp")
+```
+
+The debugger showed me a red x with the following line, I originally thought this was some R code, but a quick google search on "r error in" revealed that this is actually an error message result, not code to be run... I'm not sure why these error texts are included in the authors blog post, but since it isn't runnable code, i just comment it out and move along remembering i'll need to do this for any similar snippets i see in the future...
+```{r}
+#Error in rgdal::ogrListLayers(input): "Cannot open data source"
+```
+
+Now we started getting into the "Analyzing the data" section of the blog post, and i knew this was probably where what i need to accomplish will start to differ from what they needed to do... but hey, let's get as far as makes sense and see what we see... next lines of code, plus commented out the stupid error messages
+```{r}
+plot(data_json)
+#Error in plot(data_json): object 'data_json' not found
+```
+
+Hey, cool, i get pictures of the plates!!! This is progress... Let's make sure we read the blog info around this block to understand what's going on... 
+
+From here the blog post starts to go into a lot of detail about how to overlay this on a google map to make it look pretty... I don't really need that... so let's go back to google to see if we can find some more help on plotting the earthquake points on that same plot...
+
+I know the above is a "spatial object" from reading the blog... so now i need to know if i can just plot points to this or if i have to convert my table of points to some kind of spatial object too inorder to combine them... 
+
+First thought... my "earthquakes" list has some 23k rows... let's not start with such a big dataset... let's get the first 10 rows into a new list, some googling turned up this: https://stackoverflow.com/questions/17120570/how-to-save-the-first-n-rows-of-a-table-in-r-into-a-file 
+```{r}
+earthquakes_subset <- earthquakes[1:10,]
+earthquakes_subset
+```
+
+Cool, nice small set of the data... On looking at this data, I realized that our end goal isn't really to PLOT the data, it's just to find out which plate each row is on... so I abandoned my idea of plotting points w/ spatial objects and decided to just jump right to "can i lookup which spatial object a given lat long is within"... let's do some googling... "r which spatial object contains a given lat long"
+This result seemed promising: https://stackoverflow.com/questions/21971447/check-if-point-is-in-spatial-object-which-consists-of-multiple-polygons-holes 
+However reading the first line of that, I clearly needed to understand more specifics about what type of spatial object i had... he states "SpatialPolygonsDataFrame" in his post... so i started poking around my data_json variable in the Data pane... "Yahtzee"... I also have a "SpatialPolygonsDataFrame"
+Let's continue reading the post...
+Reading this, this guy is trying to determine if the point is within a polygon... true/false... not "which polygon" it's within... so we'll keep this window, but do a little more specific searching to see if we can narrow into something more explicit: "r sp which polygon is a point inside"
+This result looked really promising: https://www.andybeger.com/2014/03/29/associating-points-with-polygons-in-r/
+
+Skimming down a bit in that post, we start to see that we need to convert our points list to spatial objects as well... let's try out his code for this... updated with our variable names (munic -> earthquakes_subset and adm2 -> data_json), and using our fully spelled out column names instead of his abbreviated ones:
+```{r}
+coordinates(earthquakes_subset) <- ~ longitude + latitude
+proj4string(earthquakes_subset) <- proj4string(data_json) 
+```
+
+We be cookin with fire now... if you look at the data panel, you'll see our "earthquakes_subset" variable is now a "spatialPointsDataFrame"... this should allow us to proceed with mashing up the two datasets... since this seems like progress, I went back and re-read the entire blog post... Looks like exactly what we want to do!... let's give it a whirl...
+
+Taking his last block of code and again updating the variables to match our stuff and printing the whole table instead of just the first 5 rows and certain columns like he did
+```{r}
+earthquakes_subset <- cbind(earthquakes_subset, over(earthquakes_subset, data_json))
+## This line doesn't match our data columns, and we've already subset the data, so let's just print it all
+#munic[1:5, c("Name", "pop_2010", "NAME_1", "NAME_2")]
+earthquakes_subset
+```
+
+Hmm, what the heck is this... let's break it down a bit more...
+
+```{r, error=TRUE}
+over(earthquakes_subset, data_json)
+```
+
+shit, i munged up my earthquakes_subset variable... let's recreate it from our earlier snippet
+```{r}
+earthquakes_subset <- earthquakes[1:10,]
+earthquakes_subset
+```
+
+Try again
+```{r, error=TRUE}
+over(earthquakes_subset, data_json)
+```
+
+
+Oops, need to re-convert it to Sp Points Data Frame
+```{r}
+coordinates(earthquakes_subset) <- ~ longitude + latitude
+proj4string(earthquakes_subset) <- proj4string(data_json) 
+```
+
+
+Try again
+```{r}
+over(earthquakes_subset, data_json)
+```
+
+This is something, but still not clear what i'm seeing... let's visually compare the list here to the list of our earth_quake Subset... 
+```{r}
+earthquakes_subset
+over(earthquakes_subset, data_json)
+```
+
+AH HA! The over is returning the plate for each list item in the same order... so now we just need to merge these two... that's what cbind was trying to do i suppose but getting it wrong somehow... 
+
+since we know the indexes match up but we don't have any common columns between the two data frames, let's do a join based on that... some quick googling: "r join data frames by index" didn't yield much... but then googling this: "place over results in spatialpointsdataframe" I found this article: https://gis.stackexchange.com/questions/137621/join-spatial-point-data-to-polygons-in-r and skimming down past the response that was importing some libraries i didn't want to have to use if i could avoid it, I saw the response that seemed to make sense... so let's try it his way... again replacing his variables with ours
+
+```{r}
+##his code
+#a.data <- over(A, B[,"code"])
+#A$bcode <- a.data$code
+
+##our code
+##run the over method and save it to a variable
+earthquakes_subset_plates <- over(earthquakes_subset, data_json)
+
+##create a copy of earthquakes_subset to protect original
+earthquakes_subset_copy <- earthquakes_subset
+
+##start attaching the resulting columns that we want to keep
+earthquakes_subset_copy$LAYER <- earthquakes_subset_plates$LAYER
+
+##let's see if it's working
+earthquakes_subset_copy
+
+```
+
+Looks like it might be working! so let's update it a little bit... let's see if we can append everything in one go
+```{r}
+##run the over method and save it to a variable
+earthquakes_subset_plates <- over(earthquakes_subset, data_json)
+
+##create a copy of earthquakes_subset to protect original
+earthquakes_subset_copy <- earthquakes_subset
+
+##start attaching the resulting columns that we want to keep, let's see if we can just append everything
+earthquakes_subset_copy <- earthquakes_subset_plates
+
+##let's see if it's working
+earthquakes_subset_copy
+```
+
+nope, that didn't work... it just overwrote the whole table (obvious in hindsight)... let's try again this time being more explicit...
+```{r}
+##run the over method and save it to a variable
+earthquakes_subset_plates <- over(earthquakes_subset, data_json)
+
+##create a copy of earthquakes_subset to protect original
+earthquakes_subset_copy <- earthquakes_subset
+
+##start attaching the resulting columns that we want to keep
+earthquakes_subset_copy$LAYER <- earthquakes_subset_plates$LAYER
+earthquakes_subset_copy$Code <- earthquakes_subset_plates$Code
+earthquakes_subset_copy$PlateName <- earthquakes_subset_plates$PlateName
+
+##let's see if it's working
+earthquakes_subset_copy
+```
+
+WOWOWOWOW... we got it!!!... there's probably a one shot function that could be used instead of having to do it column-by-column in three lines of code.. but hey, i'm not picky... now let's do this thing for real... combining all our "useful code" from above into a one-shot and using the full dataset and cleaning things up a bit:
+```{r}
+library(sp)
+#library(rgdal)
+if (!require(geojsonio)) {
+  install.packages("geojsonio")
+  library(geojsonio)
+}
+#library(maps)
+#library(ggmap)
+
+## variables for our file path/names
+plate_data_file <- "PB2002_plates.json"
+eq_data_file <- "earthquakes.csv"
+
+## load those files into some variables
+eqs <- read.csv(eq_data_file)                           ## Comes in as a list
+plates <- geojson_read(plate_data_file, what = "sp")    ## Comes in as a SpatialPolygonsDataFrame
+
+## convert our list of earthquake points into a SpatialPointsDataFrame
+coordinates(eqs) <- ~ longitude + latitude
+
+## convert our earthquakes to use the same coordinate system as our plates, needed so we can overlay them
+proj4string(eqs) <- proj4string(plates)
+
+##run the over method and save it to a variable
+eqs_plates <- over(eqs, plates)
+
+##Attach the resulting columns that we got from over to the rows of eqs
+eqs$LAYER <- eqs_plates$LAYER
+eqs$Code <- eqs_plates$Code
+eqs$PlateName <- eqs_plates$PlateName
+
+##let's see if it worked
+head(eqs, n = 50L)
+```
+
+Looks pretty spiffy!!!... Now remember that this data is in a "SpatialPointsDataFrame" format, so depending on what you want to do next to it, you may want to convert it to a table or some other data type...
+
+Also, last thought, there were a bunch of libraries from that original blog post, I doubt we need all of them from the functions we used, so let's do a quick check of each one... the process I used for this is as follows... 
+1. In the "Packages pane", uncheck all of the libraries mentioned: sp, rgdal, geojsonio, maps, ggmap (this unloads them all from your runtime environment)
+2. We know we need sp, so let's not comment that one out... but let's comment out the rest of the libraries above for the first run
+3. run the code
+4. oops, got an error at "geojson_read"... guessing that function is in geojsonio... so let's uncomment that one
+5. run the code again
+
+AWESOME, it works... now if I was going to submit the above anywhere I would delete those commented out libraries that we didn't use, but i'll leave them in here for your viewing pleasure...
